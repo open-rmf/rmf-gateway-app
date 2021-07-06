@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<org.btelman.controller.rvr.views.BLEScanLayout
+<org.openrmf.gatewayapp.rvr.views.BLEScanLayout
     android:id="@+id/mainScanLayoutHolder"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -20,4 +20,4 @@
         android:layout_height="wrap_content"
         app:layout_constraintBottom_toTopOf="@+id/progressHorizontalScanLayout"
         android:orientation="vertical"/>
-</org.btelman.controller.rvr.views.BLEScanLayout>
+</org.openrmf.gatewayapp.rvr.views.BLEScanLayout>

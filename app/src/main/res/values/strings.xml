@@ -1,7 +1,14 @@
 <resources>
-    <string name="app_name">Controller for RVR</string>
+    <string name="app_name">RMF Gateway App</string>
     <string name="action_settings">Settings</string>
     <string name="action_privacy">Privacy</string>
     <string name="btPermRequestText">Location permissions are needed to scan for RVR.</string>
     <string name="action_screen_keep_on">Keep Screen Awake</string>
+
+    <string name="mqtt_url_label">MQTT</string>
+    <string name="mqtt_broker_default_url">tcp://10.11.12.1:1883</string>
+    <string name="trans_vel">tvel</string>
+    <string name="rot_vel">rvel</string>
+    <string name="logsTextView">View Logs Here</string>
+    <string name="connectionText">Waiting for connection...</string>
 </resources>

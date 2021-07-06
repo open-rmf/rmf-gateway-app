@@ -45,6 +45,12 @@ android {
     }
 }
 
+repositories {
+    maven {
+        url "https://repo.eclipse.org/content/repositories/paho-snapshots/"
+    }
+}
+
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
@@ -57,12 +63,14 @@ dependencies {
     implementation 'no.nordicsemi.android:ble:2.1.1'
     implementation 'no.nordicsemi.android.support.v18:scanner:1.4.2'
 
-    //logutil
-    api 'org.btelman.logutil:logutil:1.0'
-
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'androidx.test.ext:junit:1.1.0'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
     implementation 'androidx.lifecycle:lifecycle-extensions:2.1.0'
+
+    // MQTT
+    implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.0.0'
+    implementation 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.4'
+    implementation 'org.eclipse.paho:org.eclipse.paho.android.service:1.1.1'
 }
 

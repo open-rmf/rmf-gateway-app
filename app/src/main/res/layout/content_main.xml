@@ -9,58 +9,123 @@
     android:background="#fff"
     tools:showIn="@layout/activity_main">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:id="@+id/settingsLayout"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-        <TextView
-            android:id="@+id/linearTextField"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:text="Linear speed maximum"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
-        <SeekBar
-            android:id="@+id/linearSpeedMaxValue"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:max="100"
-            android:progress="70"
-            app:layout_constraintStart_toStartOf="@id/linearTextField"
-            app:layout_constraintTop_toBottomOf="@id/linearTextField" />
-        <TextView
-            android:id="@+id/rotationSpeedTextField"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:text="Rotate speed maximum"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/linearSpeedMaxValue" />
-        <SeekBar
-            android:id="@+id/rotationSpeedMaxValue"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:max="100"
-            android:progress="70"
-            app:layout_constraintStart_toStartOf="@id/rotationSpeedTextField"
-            app:layout_constraintTop_toBottomOf="@id/rotationSpeedTextField" />
-    </androidx.constraintlayout.widget.ConstraintLayout>
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-    <org.btelman.controller.rvr.ui.JoystickSurfaceView
-        android:id="@+id/joystickSurfaceView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintHeight_percent=".7"
-        app:layout_constraintWidth_percent=".7"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/connectionStatusView" />
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/settingsLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/linearTextField"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="8dp"
+                        android:text="@string/trans_vel" />
+
+                    <SeekBar
+                        android:id="@+id/linearSpeedMaxValue"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="8dp"
+                        android:max="100"
+                        android:progress="70" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/rotationSpeedTextField"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="8dp"
+                        android:text="@string/rot_vel" />
+
+                    <SeekBar
+                        android:id="@+id/rotationSpeedMaxValue"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="8dp"
+                        android:max="100"
+                        android:progress="90" />
+
+                </LinearLayout>
+
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/mqttUrlLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="8dp"
+                        android:layout_weight="1"
+                        android:text="@string/mqtt_url_label" />
+
+                    <EditText
+                        android:id="@+id/mqttUrlTextEdit"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="4"
+                        android:ems="10"
+                        android:importantForAutofill="no"
+                        android:inputType="textPersonName"
+                        android:text="@string/mqtt_broker_default_url"
+                        tools:ignore="LabelFor,TextFields" />
+
+                    <Switch
+                        android:id="@+id/mqttSwitch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        tools:ignore="UseSwitchCompatOrMaterialXml" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <TextView
+            android:id="@+id/logsTextView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="8dp"
+            android:layout_marginTop="16dp"
+            android:layout_weight="3"
+            android:background="#E4DEDE"
+            android:padding="8dp"
+            android:text="@string/logsTextView" />
+
+        <org.openrmf.gatewayapp.rvr.ui.JoystickSurfaceView
+            android:id="@+id/joystickSurfaceView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_weight="4"
+            app:layout_constraintHeight_percent=".7"
+            app:layout_constraintWidth_percent=".7" />
+
+    </LinearLayout>
 
     <TextView
         android:id="@+id/connectionStatusView"
@@ -68,7 +133,7 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
         android:layout_marginBottom="8dp"
-        android:text="Waiting for connection"
+        android:text="@string/connectionText"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.484"
