@@ -30,51 +30,6 @@
                     android:orientation="horizontal">
 
                     <TextView
-                        android:id="@+id/linearTextField"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_margin="8dp"
-                        android:text="@string/trans_vel" />
-
-                    <SeekBar
-                        android:id="@+id/linearSpeedMaxValue"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_margin="8dp"
-                        android:max="100"
-                        android:progress="70" />
-
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/rotationSpeedTextField"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_margin="8dp"
-                        android:text="@string/rot_vel" />
-
-                    <SeekBar
-                        android:id="@+id/rotationSpeedMaxValue"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_margin="8dp"
-                        android:max="100"
-                        android:progress="90" />
-
-                </LinearLayout>
-
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <TextView
                         android:id="@+id/mqttUrlLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -102,6 +57,11 @@
 
                 </LinearLayout>
 
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal"></LinearLayout>
+
             </LinearLayout>
 
         </androidx.constraintlayout.widget.ConstraintLayout>
@@ -115,7 +75,32 @@
             android:layout_weight="3"
             android:background="#E4DEDE"
             android:padding="8dp"
-            android:text="@string/logsTextView" />
+            android:scrollbars = "vertical"
+            android:text="Cmd Logs Here" />
+
+        <TextView
+            android:id="@+id/gpsLogsTextView"
+            android:layout_width="match_parent"
+            android:layout_height="95dp"
+            android:layout_margin="4dp"
+            android:layout_marginTop="0dp"
+            android:layout_weight="0.5"
+            android:background="#E4DEDE"
+            android:padding="8dp"
+            android:scrollbars="vertical"
+            android:text="GPS Logs here" />
+
+        <TextView
+            android:id="@+id/motorLogsTextView"
+            android:layout_width="match_parent"
+            android:layout_height="95dp"
+            android:layout_margin="4dp"
+            android:layout_marginTop="0dp"
+            android:layout_weight="0.5"
+            android:background="#E4DEDE"
+            android:padding="8dp"
+            android:scrollbars="vertical"
+            android:text="Motor Logs Here" />
 
         <org.openrmf.gatewayapp.rvr.ui.JoystickSurfaceView
             android:id="@+id/joystickSurfaceView"

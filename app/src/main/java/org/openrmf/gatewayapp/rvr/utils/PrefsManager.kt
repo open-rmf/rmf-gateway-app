@@ -11,7 +11,10 @@ class PrefsManager (
     /**
      * Handle input timeout
      */
-    val timeoutMs: Long = 800 //a little long, but will prevent runaway robots
+    val defaultTimeoutMs: Long = 500
+    val defaultRotTimeoutMs: Long = 500
+    var timeoutMs: Long = 500           // These values will shrink as the user fidgets
+    var rotTimeoutMs: Long = 500
     var keepScreenAwake : Boolean
         get() {
             return sharedPrefs.getBoolean("keepScreenAwake", false)
@@ -37,7 +40,7 @@ class PrefsManager (
     var maxTurnSpeed : Float
         get() {
             _maxTurnSpeed?: run {
-                _maxTurnSpeed = sharedPrefs.getFloat("maxTurnSpeed", .7f)
+                _maxTurnSpeed = sharedPrefs.getFloat("maxTurnSpeed", .8f)
             }
             return _maxTurnSpeed!!
         }

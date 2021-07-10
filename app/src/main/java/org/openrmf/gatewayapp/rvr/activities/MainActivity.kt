@@ -4,16 +4,18 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.PackageManager.FEATURE_BLUETOOTH_LE
 import android.net.Uri.fromParts
 import android.os.Build
 import android.os.Bundle
+import android.os.CountDownTimer
 import android.os.Handler
 import android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-import android.view.*
-import android.widget.SeekBar
+import android.text.method.ScrollingMovementMethod
+import android.view.MotionEvent
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -26,9 +28,14 @@ import kotlinx.android.synthetic.main.content_main.*
 import org.eclipse.paho.client.mqttv3.*
 import org.openrmf.gatewayapp.rvr.R
 import org.openrmf.gatewayapp.rvr.RVRViewModel
-import org.openrmf.gatewayapp.rvr.utils.*
+import org.openrmf.gatewayapp.rvr.utils.DriveUtil
+import org.openrmf.gatewayapp.rvr.utils.InputHandler
+import org.openrmf.gatewayapp.rvr.utils.PrefsManager
+import org.openrmf.gatewayapp.rvr.utils.SpheroMotors
 import org.openrmf.gatewayapp.rvr.views.BLEScanSnackBarThing
-import kotlin.math.roundToInt
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 
 
 interface LogsCallback {
@@ -36,10 +43,13 @@ interface LogsCallback {
     fun updateLogs(msg: String)
 }
 
-class MainActivity : AppCompatActivity(), LogsCallback {
+class MainActivity : AppCompatActivity(), LogsCallback, LocationListener {
     // RVR Stuff
     private var previousCommand: Long = System.currentTimeMillis()
     private var timedOut = false
+    private var rotTimedOut = false
+    private var previousInput = listOf("0", "0")
+    private var fidgetingState = false
     private lateinit var inputHandler: InputHandler
     private lateinit var prefsManager: PrefsManager
     private var right = 0.0f
@@ -48,11 +58,41 @@ class MainActivity : AppCompatActivity(), LogsCallback {
     private var handler : Handler? = null
     private var allowPermissionClickedTime = 0L
     private var bleLayout: BLEScanSnackBarThing? = null
-    private var timeOfLastMQTTMessage: Long = 0
 
     // MQTT Stuff
+    private var timeOfLastMQTTMessage: Long = 0
     private lateinit var mqttClient : MQTTClient
-    private val topic = "cmd_vel"
+    private val velTopic = "cmd_vel"
+
+    // GPS Stuff
+    private val gpsTopic = "gps_location"
+    private lateinit var locationManager: LocationManager
+    private lateinit var timer: CountDownTimer
+    private val locationPermissionCode = 2
+
+
+    private fun getLocation() {
+        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), locationPermissionCode)
+        }
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3000, 5f, this)
+    }
+    override fun onLocationChanged(location: Location) {
+        updateGPSLogs("Latitude: " + location.latitude + " , Longitude: " + location.longitude)
+        if (mqttClient.isConnected()) {
+            mqttClient.publish(gpsTopic, "${location.latitude},${location.longitude}")
+        }
+    }
+
+    override fun onStatusChanged(p0: String?, p1: Int, p2: Bundle?) {
+    }
+
+    override fun onProviderEnabled(p0: String?) {
+    }
+
+    override fun onProviderDisabled(p0: String?) {
+    }
 
     private fun simulateJoystickInput(action: Int, d_x: Float, d_y:Float) {
         // Convention: origin is top left, |---> x
@@ -60,23 +100,21 @@ class MainActivity : AppCompatActivity(), LogsCallback {
         //                                 v
         //                                 y
 
-        var d_x_t = d_x; var d_y_t = d_y;
-        if (d_x > 1.0f) {d_x_t = 1.0f}; if (d_y > 1.0f) {d_y_t = 1.0f}
-        if (d_x < -1.0f) {d_x_t = -1.0f}; if (d_y < -1.0f) {d_y_t = -1.0f}
+        var dXT = d_x; var dYT = d_y
+        if (d_x > 1.0f) {dXT = 1.0f}; if (d_y > 1.0f) {dYT = 1.0f}
+        if (d_x < -1.0f) {dXT = -1.0f}; if (d_y < -1.0f) {dYT = -1.0f}
 
         // Input simulator
         val joystickAxes = joystickSurfaceView.origins
 
-        val x = joystickAxes[0] + (d_x_t * joystickSurfaceView.range)
-        val y = joystickAxes[1] + (d_y_t * joystickSurfaceView.range)
-        updateLogs("${d_x_t}, ${d_y_t}")
-        updateLogs("JoySim: Sending input $action action to ($x, $y)")
+        val x = joystickAxes[0] + (dXT * joystickSurfaceView.range)
+        val y = joystickAxes[1] + (dYT * joystickSurfaceView.range)
 
-        for ( i in 1..2 ) {
+        for (i in 1..2) {
             joystickSurfaceView.dispatchTouchEvent(
                 MotionEvent.obtain(
                     android.os.SystemClock.uptimeMillis(),
-                    android.os.SystemClock.uptimeMillis(),
+                    android.os.SystemClock.uptimeMillis() + 10,
                     action,
                     x,
                     y,
@@ -88,9 +126,28 @@ class MainActivity : AppCompatActivity(), LogsCallback {
 
     // Logging Stuff
     override fun updateLogs(msg: String) {
+        // Prevent lag
+        if (logsTextView.lineCount > 300) {
+           logsTextView.text = ""
+        }
+
         logsTextView.append("$msg\n")
         val scrollAmount = (logsTextView.lineCount * logsTextView.lineHeight) - (logsTextView.bottom - logsTextView.top)
         logsTextView.scrollTo(0, scrollAmount)
+    }
+
+    private fun updateMotorLogs(msg: String) {
+        motorLogsTextView.text = ""
+        motorLogsTextView.append("$msg\n")
+    }
+
+    private fun updateGPSLogs(msg: String) {
+        gpsLogsTextView.text = ""
+        gpsLogsTextView.append("$msg\n")
+    }
+
+    private fun isZero(value: Float, threshold: Float): Boolean {
+        return value >= -threshold && value <= threshold
     }
 
     @SuppressLint("SetTextI18n")
@@ -100,42 +157,26 @@ class MainActivity : AppCompatActivity(), LogsCallback {
 
         // RVR STUFF
         prefsManager = PrefsManager(this)
+        prefsManager.maxSpeed = 1.0f
+        prefsManager.maxTurnSpeed = 1.2f
         inputHandler = InputHandler(this, prefsManager, this::onInputUpdated)
         if(!packageManager.hasSystemFeature(FEATURE_BLUETOOTH_LE)){
             connectionStatusView.text = "Device does not support required bluetooth mode"
             return
         }
-        linearSpeedMaxValue.progress = (prefsManager.maxSpeed*100.0f).roundToInt()
-        rotationSpeedMaxValue.progress = (prefsManager.maxTurnSpeed*100.0f).roundToInt()
         handler = Handler()
         viewModelRVR = ViewModelProviders.of(this)[RVRViewModel::class.java]
         viewModelRVR!!.connected.observe(this, Observer<Boolean> {
             connectionStatusView.text = if(it) "connected" else "disconnected"
             mainCoordinatorLayout.keepScreenOn = if(it) prefsManager.keepScreenAwake else false
         })
-        linearSpeedMaxValue.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener{
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                prefsManager.maxSpeed = progress/100.0f
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        rotationSpeedMaxValue.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener{
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                prefsManager.maxTurnSpeed = progress/100.0f
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
 
         joystickSurfaceView.setListener(inputHandler)
 
         connectionStatusView.setOnClickListener {
             disconnectFromDevice()
         }
-        fab.setOnClickListener { view ->
+        fab.setOnClickListener {
             if(bleLayout?.isShown != true){
                 disconnectFromDevice()
                 val ready = checkPerms()
@@ -150,28 +191,32 @@ class MainActivity : AppCompatActivity(), LogsCallback {
         }
 
         fab.performClick()
+        logsTextView.movementMethod = ScrollingMovementMethod()
 
         // MQTT STUFF
         mqttSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 updateLogs("MQTT: Activating MQTT.")
                 timeOfLastMQTTMessage = System.currentTimeMillis()
-                mqttClient = MQTTClient(this.applicationContext,mqttUrlTextEdit.text.toString(), "");
+                mqttClient = MQTTClient(this.applicationContext,mqttUrlTextEdit.text.toString(), "")
                 mqttClient.connect(
                     cbConnect = object : IMqttActionListener {
                         override fun onSuccess(asyncActionToken: IMqttToken?) {
+                            // cmd stuff
                             updateLogs("MQTT: Connection success")
-                            mqttClient.subscribe(topic,
+                            mqttClient.subscribe(velTopic,
                                 1,
                                 object : IMqttActionListener {
                                     override fun onSuccess(asyncActionToken: IMqttToken?) {
-                                        updateLogs("MQTT: Subscribed to: $topic")
+                                        updateLogs("MQTT: Subscribed to: $velTopic")
                                     }
 
                                     override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
-                                        updateLogs("MQTT: Failed to subscribe: $topic")
+                                        updateLogs("MQTT: Failed to subscribe: $velTopic")
                                     }
                                 })
+
+                            getLocation()
                         }
 
 
@@ -183,32 +228,65 @@ class MainActivity : AppCompatActivity(), LogsCallback {
                         override fun messageArrived(topic: String?, message: MqttMessage?) {
                             updateLogs("MQTT: Receive message: ${message.toString()} from topic: $topic")
                             val xy = message.toString().split(',')
-                            timeOfLastMQTTMessage = System.currentTimeMillis()
+
+                            // Update memory of previous input if not "0.0,0.0"
+                            if (!isZero(xy[0].toFloat(), 0.1f) || !isZero(xy[1].toFloat(), 0.1f)) {
+
+                                // Decide if user is fidgeting the robot ( alternating between opposite actions )
+                                val xFlip = !isZero(xy[0].toFloat(), 0.1f) && isZero(xy[0].toFloat() + previousInput[0].toFloat(), 0.01f)
+                                val yFlip = !isZero(xy[1].toFloat(), 0.1f) && isZero(xy[1].toFloat() + previousInput[1].toFloat(), 0.01f)
+
+                                fidgetingState = xFlip || yFlip
+                                previousInput = xy
+                            }
                             simulateJoystickInput(MotionEvent.ACTION_MOVE, xy[0].toFloat(), xy[1].toFloat())
+
+                            if (fidgetingState) {
+                                prefsManager.timeoutMs = prefsManager.timeoutMs - 50
+                                prefsManager.rotTimeoutMs = prefsManager.rotTimeoutMs - 50
+                            } else {
+                                prefsManager.timeoutMs = prefsManager.defaultTimeoutMs
+                                prefsManager.rotTimeoutMs = prefsManager.defaultRotTimeoutMs
+                            }
                         }
 
                         override fun connectionLost(cause: Throwable?) {
-                            updateLogs("MQTT: Connection lost ${cause.toString()}")
+                            updateLogs("MQTT: Connection lost")
                         }
 
                         override fun deliveryComplete(token: IMqttDeliveryToken?) {
-                            updateLogs("MQTT: Delivery complete")
+//                            updateLogs("MQTT: Delivery complete")
                         }
                     })
+                // GPS
+                getLocation()
+                timer = object: CountDownTimer(100000, 5000) {
+                    @SuppressLint("MissingPermission")
+                    override fun onTick(millisUntilFinished: Long) {
+                        val location = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                        if (mqttClient.isConnected()) {
+                            mqttClient.publish(gpsTopic, "${location?.latitude},${location?.longitude}")
+                        }
+                    }
+                    override fun onFinish() {
+                        timer.start()
+                    }
+                }
+                timer.start()
             } else {
                 updateLogs("MQTT: Deactivating MQTT.")
                 try {
-                    mqttClient.unsubscribe(topic,
+                    mqttClient.unsubscribe(velTopic,
                         object : IMqttActionListener {
                             override fun onSuccess(asyncActionToken: IMqttToken?) {
-                                updateLogs("MQTT: Unsubscribed to: $topic")
+                                updateLogs("MQTT: Unsubscribed to: $velTopic")
                             }
 
                             override fun onFailure(
                                 asyncActionToken: IMqttToken?,
                                 exception: Throwable?
                             ) {
-                                updateLogs("MQTT: Failed to unsubscribe: $topic")
+                                updateLogs("MQTT: Failed to unsubscribe: $velTopic")
                             }
                         })
                 } catch (e: Exception) {
@@ -216,7 +294,7 @@ class MainActivity : AppCompatActivity(), LogsCallback {
 
                 mqttClient.disconnect(object : IMqttActionListener {
                     override fun onSuccess(asyncActionToken: IMqttToken?) {
-                        updateLogs("MQTT: Disconnected");
+                        updateLogs("MQTT: Disconnected")
                     }
 
                     override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
@@ -286,10 +364,10 @@ class MainActivity : AppCompatActivity(), LogsCallback {
     }
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
-        return inputHandler.processMotionEvent(event) || super.onGenericMotionEvent(event)
+        return super.onGenericMotionEvent(event)
     }
 
-    fun onInputUpdated(left : Float, right: Float){
+    private fun onInputUpdated(left : Float, right: Float){
         this.left = left
         this.right = right
         sendMotorCommandFrame()
@@ -305,23 +383,22 @@ class MainActivity : AppCompatActivity(), LogsCallback {
     }
 
     private fun checkPerms() : Boolean{
-        if (Build.VERSION.SDK_INT >= 23) {
-            return (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+        return if (Build.VERSION.SDK_INT >= 23) {
+            (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
                     == PackageManager.PERMISSION_GRANTED &&
                     ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                     == PackageManager.PERMISSION_GRANTED)
-        }
-        else return true
+        } else true
     }
 
-    fun requestPerms(){
+    private fun requestPerms(){
         ActivityCompat.requestPermissions(this,
             arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION),
             PERM_REQUEST_LOCATION
         )
     }
 
-    fun showScanLayout() {
+    private fun showScanLayout() {
         bleLayout ?: let {
             bleLayout = BLEScanSnackBarThing.make(mainCoordinatorLayout)
         }
@@ -347,7 +424,7 @@ class MainActivity : AppCompatActivity(), LogsCallback {
         }
     }
 
-    fun hideScanLayout(){
+    private fun hideScanLayout(){
         fab.setImageResource(android.R.drawable.stat_sys_data_bluetooth)
         if(bleLayout?.isShown == true) {
             bleLayout?.dismiss()
@@ -375,17 +452,11 @@ class MainActivity : AppCompatActivity(), LogsCallback {
     private fun sendMotorCommandFrame() {
         viewModelRVR?.let { viewModel->
             if(viewModel.connected.value == true){
+
                 val lastInputCommand = System.currentTimeMillis() - inputHandler.lastUpdated
-                // Injection to restart MQTT if too long since last message
-                if (mqttSwitch.isChecked) {
-                    if (System.currentTimeMillis() - timeOfLastMQTTMessage > 20000) {
-                        mqttSwitch.toggle()
-                    }
-                } else {
-                    mqttSwitch.toggle()
-                }
+
+                // Check if timeout
                 if(lastInputCommand > prefsManager.timeoutMs){
-                    if(timedOut && lastInputCommand > prefsManager.timeoutMs + 1000) return //allow it to send the stop command for a second
                     timedOut = true
                     simulateJoystickInput(MotionEvent.ACTION_UP, 0.0f, 0.0f)
                     left = 0f
@@ -397,18 +468,51 @@ class MainActivity : AppCompatActivity(), LogsCallback {
                     }
                     timedOut = false
                 }
+
                 val axes = joystickSurfaceView.joystickAxes
                 var command : ByteArray
 //                updateLogs("axes: ${axes[0]}, ${axes[1]}")
                 if(axes[0] != 0.0f || axes[1] != 0.0f){
                     DriveUtil.rcDrive(-axes[1]*prefsManager.maxSpeed, -axes[0]*prefsManager.maxTurnSpeed, true).also {
-                        val left = it.first
-                        val right = it.second
+
+                        var left = it.first
+                        var right = it.second
+
+                        // Rotation specific logic
+                        if ( kotlin.math.abs(left) > kotlin.math.abs(left + right)) {
+
+                            // Check if rotation timeout
+                            if(lastInputCommand > prefsManager.rotTimeoutMs){
+                                rotTimedOut = true
+                                simulateJoystickInput(MotionEvent.ACTION_UP, 0.0f, 0.0f)
+                                left = 0f
+                                right = 0f
+                            }
+
+                            // left and right motor values have opposite signs  => rotation
+                            if (left > 0) { // Clockwise
+                                if (left < prefsManager.maxTurnSpeed / 2) { left = prefsManager.maxTurnSpeed / 2; right = -prefsManager.maxTurnSpeed / 2 }
+                            }
+                            if (left < 0) { // C-Clockwise
+                                if (left > -prefsManager.maxTurnSpeed / 2) { left = -prefsManager.maxTurnSpeed / 2; right = prefsManager.maxTurnSpeed / 2 }
+                            }
+                        } else {
+                            if (left > 0) {
+                                if (left < prefsManager.maxSpeed / 4) { left = prefsManager.maxSpeed / 4; right = prefsManager.maxSpeed / 4 }
+                            }
+                            if (left < 0) {
+                                if (left > -prefsManager.maxSpeed / 4) { left = -prefsManager.maxSpeed / 4; right = -prefsManager.maxSpeed / 4 }
+                            }
+                        }
+
+                        updateMotorLogs("Left: $left Right: $right Fidget: $fidgetingState")
                         command = SpheroMotors.drive(left, right)
                     }
                 } else{
+                    updateMotorLogs("Left: $left Right: $right Fidget: $fidgetingState" )
                     command = SpheroMotors.drive(left, right)
                 }
+
                 viewModel.sendCommand(command)
                 previousCommand = inputHandler.lastUpdated
             }

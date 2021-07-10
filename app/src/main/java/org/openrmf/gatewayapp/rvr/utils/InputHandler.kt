@@ -27,14 +27,14 @@ class InputHandler(
         onInputUpdate(left, right)
     }
 
-    fun processMotionEvent(event: MotionEvent) : Boolean{
-        // Check that the event came from a game controller
-        if (event.source and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK && event.action == MotionEvent.ACTION_MOVE) {
-            processJoystickInput(event, -1)
-            return true
-        }
-        return false
-    }
+//    fun processMotionEvent(event: MotionEvent) : Boolean{
+//        // Check that the event came from a game controller
+//        if (event.source and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK && event.action == MotionEvent.ACTION_MOVE) {
+//            processJoystickInput(event, -1)
+//            return true
+//        }
+//        return false
+//    }
 
     private fun getCenteredAxis(
         event: MotionEvent,
