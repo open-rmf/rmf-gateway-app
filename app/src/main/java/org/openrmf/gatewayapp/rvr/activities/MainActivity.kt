@@ -158,7 +158,7 @@ class MainActivity : AppCompatActivity(), LogsCallback, LocationListener {
         // RVR STUFF
         prefsManager = PrefsManager(this)
         prefsManager.maxSpeed = 1.0f
-        prefsManager.maxTurnSpeed = 1.2f
+        prefsManager.maxTurnSpeed = 1.15f
         inputHandler = InputHandler(this, prefsManager, this::onInputUpdated)
         if(!packageManager.hasSystemFeature(FEATURE_BLUETOOTH_LE)){
             connectionStatusView.text = "Device does not support required bluetooth mode"
@@ -232,18 +232,25 @@ class MainActivity : AppCompatActivity(), LogsCallback, LocationListener {
                             // Update memory of previous input if not "0.0,0.0"
                             if (!isZero(xy[0].toFloat(), 0.1f) || !isZero(xy[1].toFloat(), 0.1f)) {
 
-                                // Decide if user is fidgeting the robot ( alternating between opposite actions )
-                                val xFlip = !isZero(xy[0].toFloat(), 0.1f) && isZero(xy[0].toFloat() + previousInput[0].toFloat(), 0.01f)
-                                val yFlip = !isZero(xy[1].toFloat(), 0.1f) && isZero(xy[1].toFloat() + previousInput[1].toFloat(), 0.01f)
+                                if (fidgetingState) {
+                                    if (!isZero(xy[1].toFloat(), 0.1f)) {
+                                        fidgetingState = false
+                                    }
+                                } else {
+                                    // Decide if user is fidgeting the robot ( alternating between opposite actions )
+                                    val xFlip = !isZero(xy[0].toFloat(), 0.1f) && isZero(xy[0].toFloat() + previousInput[0].toFloat(), 0.01f)
+                                    val yFlip = !isZero(xy[1].toFloat(), 0.1f) && isZero(xy[1].toFloat() + previousInput[1].toFloat(), 0.01f)
 
-                                fidgetingState = xFlip || yFlip
+                                    fidgetingState = xFlip || yFlip
+                                }
+
                                 previousInput = xy
                             }
                             simulateJoystickInput(MotionEvent.ACTION_MOVE, xy[0].toFloat(), xy[1].toFloat())
 
                             if (fidgetingState) {
-                                prefsManager.timeoutMs = prefsManager.timeoutMs - 50
-                                prefsManager.rotTimeoutMs = prefsManager.rotTimeoutMs - 50
+                                prefsManager.timeoutMs = prefsManager.defaultTimeoutMs / 4
+                                prefsManager.rotTimeoutMs = prefsManager.defaultRotTimeoutMs / 4
                             } else {
                                 prefsManager.timeoutMs = prefsManager.defaultTimeoutMs
                                 prefsManager.rotTimeoutMs = prefsManager.defaultRotTimeoutMs

@@ -14,7 +14,7 @@ class PrefsManager (
     val defaultTimeoutMs: Long = 500
     val defaultRotTimeoutMs: Long = 500
     var timeoutMs: Long = 500           // These values will shrink as the user fidgets
-    var rotTimeoutMs: Long = 500
+    var rotTimeoutMs: Long = 300
     var keepScreenAwake : Boolean
         get() {
             return sharedPrefs.getBoolean("keepScreenAwake", false)
